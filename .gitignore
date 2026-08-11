@@ -202,8 +202,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Dagster: the demo builds its instance and its tables in place; neither is source.
-dagster_home/
+# Dagster: `dg dev` builds its instance under the cwd and removes it on exit, so this
+# only catches what a killed process leaves behind. `storage/` is the demo's tables.
+.tmp_dagster_home_*/
 storage/
 
 # dg writes a per-checkout telemetry id here; it is local state, not source.

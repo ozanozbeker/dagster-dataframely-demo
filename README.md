@@ -10,33 +10,27 @@ That is the claim the project exists to demonstrate.
 
 ```bash
 uv sync
-export DAGSTER_HOME="$PWD/dagster_home" && mkdir -p "$DAGSTER_HOME"
-```
-
-`DAGSTER_HOME` is what keeps check history across restarts, so set it before the first run rather than after.
-
-Materialize before you look.
-Half these surfaces only exist once an asset has run.
-
-```bash
-# Everything that goes green, in one run.
-uv run dg launch --assets '* and not group:c_failures and not key:daily_orders'
-
-# The four partitions, one run each.
-for day in 2026-08-01 2026-08-02 2026-08-03 2026-08-04; do
-  uv run dg launch --assets daily_orders --partition "$day"
-done
-
-# The three that fail on purpose. This run is meant to end red.
-uv run dg launch --assets 'group:c_failures'
-
 uv run dg dev
 ```
 
 Then open <http://localhost:3000>.
 
-To start over, `rm -rf dagster_home storage`.
-Both are gitignored.
+There is no `DAGSTER_HOME` to set.
+`dg dev` builds its instance in a temp directory and deletes it on exit, so every session starts empty and leaves nothing behind.
+
+That is also why the runs below happen in the UI rather than the CLI.
+A `dg launch` in another shell gets a throwaway instance of its own, and nothing it records reaches the tab you have open.
+
+Materialize before you look.
+Half these surfaces only exist once an asset has run.
+The asset graph's search bar takes the same selection syntax as `--assets`, so paste each of these in and hit **Materialize**:
+
+1. `* and not group:c_failures and not key:daily_orders` is everything that goes green, in one run.
+2. `daily_orders` is partitioned, so this one opens the backfill dialog; take all four days.
+3. `group:c_failures` is the three that fail on purpose, so this run ends red.
+
+Ctrl-C ends the session and the run history goes with it.
+Tables under `storage/` outlive it, so `rm -rf storage` to start those over too.
 
 ## The files
 
@@ -77,15 +71,15 @@ The five rows of the library's failure-policy table are five of these assets: `g
 Each raises a different error from the package, and the message is a surface worth reading.
 
 Keep them out of any bulk materialize, or the aborted run buries the assets you wanted populated.
-That is what `not group:c_failures` in the command above is for.
+That is what `not group:c_failures` in the first selection above is for.
 
 ## Notes
 
-`daily_orders` is partitioned, so it needs `--partition` and cannot share a run with the unpartitioned assets.
+`daily_orders` is partitioned and cannot share a run with the unpartitioned assets, which is why it gets a step of its own.
 
-Selecting an asset that declares a quarantine needs both of its keys, because the underlying `multi_asset` does not support subsetting: use `--assets 'group:c_failures'` rather than `--assets doomed_orders`.
+Selecting an asset that declares a quarantine needs both of its keys, because the underlying `multi_asset` does not support subsetting: select `group:c_failures` rather than `doomed_orders` on its own.
 
-Tables land in `storage/`, relative to wherever you run from.
+Tables land in `storage/`, relative to wherever you started `dg dev`.
 `DEMO_STORAGE_DIR` overrides it, and the managers take a universal-pathlib path, so `DEMO_STORAGE_DIR=s3://my-bucket/demo` writes to S3 given `s3fs` installed alongside.
 
 ### Pointing the demo at a local checkout
