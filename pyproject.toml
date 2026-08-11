@@ -1,0 +1,47 @@
+[project]
+name = "dagster_dataframely_demo"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "dagster==1.13.17",
+  "dagster-dataframely>=0.1,<0.2",
+  "dataframely>=3.0.0",
+  "polars>=1.43.2",
+]
+
+[dependency-groups]
+dev = [
+  "dagster-dg-cli",
+  "dagster-webserver",
+  "prek>=0.4.12",
+  "pyrefly>=1.2.0",
+  "pytest>=9.1.1",
+  "ruff>=0.16.1",
+  "rumdl>=0.2.50",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.00,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "dagster_dataframely_demo"
+registry_modules = [
+  "dagster_dataframely_demo.components.*",
+]
+
+[tool.pytest.ini_options]
+addopts = [
+  "-ra",
+  "--strict-config",
+  "--strict-markers",
+  "--import-mode=importlib"
+]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.uv]
+required-version = ">=0.12,<0.13"
