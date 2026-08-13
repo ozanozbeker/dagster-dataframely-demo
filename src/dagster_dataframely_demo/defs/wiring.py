@@ -47,6 +47,11 @@ QUARANTINE = "hand_wired_orders_quarantine"
             description="The invalid rows, on an out you declared rather than one the decorator added.",
         ),
     },
+    # What hangs the quarantine off the valid table instead of off this asset's own parents,
+    # which is what a `multi_asset` gives every out by default. The whole map is required:
+    # name only the quarantine and Dagster refuses it, because every input the valid out holds
+    # has to be accounted for. This asset builds its own frame and has none, hence the empty set.
+    internal_asset_deps={VALID: set(), QUARANTINE: {dg.AssetKey(VALID)}},
     check_specs=dd.wiring.check_specs(Orders, asset=VALID),
 )
 def hand_wired_orders(context: dg.AssetExecutionContext) -> dd.wiring.AssetYield:

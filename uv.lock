@@ -304,7 +304,7 @@ wheels = [
 
 [[package]]
 name = "dagster-dataframely"
-version = "0.4.0"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dagster" },
@@ -313,9 +313,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d8/91/2300a2d1a0f644904d5ce9efd910e60738bbddd83c726fb4d8521db1117b/dagster_dataframely-0.4.0.tar.gz", hash = "sha256:fec1681fcb8727ca9863a7ad1f22f122226925be32c5858e22bdd8349e95caf8", size = 97269, upload-time = "2026-08-13T14:50:15.305Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/04/6f/8f49ecd4ea766e385c8b5a5489bdee786c8778d87cb50b783b61ae467072/dagster_dataframely-0.5.0.tar.gz", hash = "sha256:44e7353070b05a303aec7e7efe40bd391674ac071c1f4f8994d785fa6c4e9916", size = 99277, upload-time = "2026-08-13T18:36:41.152Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/f4/24286e9adcf1b022f61816858cc76c0ec1dc29b12dbcea3c12189ae5fa2a/dagster_dataframely-0.4.0-py3-none-any.whl", hash = "sha256:9b1b0917481659d86ba941f4ceebf6ea4f235be7a66037576d516132939d3522", size = 91828, upload-time = "2026-08-13T14:50:14.137Z" },
+    { url = "https://files.pythonhosted.org/packages/09/13/d04d62533eea3abb3e47ea04274b7b9cbfed49e974777db6b49449466947/dagster_dataframely-0.5.0-py3-none-any.whl", hash = "sha256:7e999242ef65ad91b294c645a6d96ad0ee87e07bab0c2d6ff82e725629bf9913", size = 92960, upload-time = "2026-08-13T18:36:39.5Z" },
 ]
 
 [[package]]
@@ -343,7 +343,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dagster", specifier = "==1.13.17" },
-    { name = "dagster-dataframely", specifier = ">=0.4,<0.5" },
+    { name = "dagster-dataframely", specifier = ">=0.5,<0.6" },
     { name = "dataframely", specifier = ">=3.0.0" },
     { name = "polars", specifier = ">=1.43.2" },
 ]

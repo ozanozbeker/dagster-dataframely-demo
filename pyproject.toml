@@ -4,7 +4,7 @@ version = "0.1.1"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "dagster==1.13.17",
-  "dagster-dataframely>=0.4,<0.5",
+  "dagster-dataframely>=0.5,<0.6",
   "dataframely>=3.0.0",
   "polars>=1.43.2",
 ]

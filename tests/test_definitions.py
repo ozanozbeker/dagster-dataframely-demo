@@ -37,6 +37,17 @@ EXPECTED_CHECKS = {
     "orders_by_schema": 2,
 }
 
+# Every quarantine the demo declares, against the asset it must hang off. Spelled out
+# rather than derived from the `_quarantine` suffix, so a quarantine that stops being
+# declared fails here instead of quietly leaving one fewer key to check.
+EXPECTED_QUARANTINES = {
+    "context_annotated_orders_quarantine": "context_annotated_orders",
+    "doomed_orders_quarantine": "doomed_orders",
+    "hand_wired_orders_quarantine": "hand_wired_orders",
+    "quarantined_orders_quarantine": "quarantined_orders",
+    "regional_orders_quarantine": "regional_orders",
+}
+
 # Every rule the defective frame is built to break, one per row bar the two that
 # share `ORD-0015` and the two lines of `ORD-0016`.
 EXPECTED_BROKEN_RULES = {
@@ -92,6 +103,21 @@ def test_check_granularity_collapses_the_rules_as_documented(defs: dg.Definition
         for spec in asset.check_specs or []:
             counts[spec.asset_key.to_user_string()] += 1
     assert {key: counts[key] for key in EXPECTED_CHECKS} == EXPECTED_CHECKS
+
+
+def test_every_quarantine_hangs_off_its_own_valid_asset(defs: dg.Definitions):
+    """The lineage screenshot is one of the shots this project exists to supply, so the graph has to be the shape the library's README describes.
+
+    `h_wiring` is the reason this reads the whole location rather than one asset: there the map is written by hand, so it can drift from what the decorator does without anything else noticing.
+    """
+    parents = {
+        key.to_user_string(): sorted(dep.to_user_string() for dep in deps)
+        for asset in _definitions(defs)
+        for key, deps in asset.asset_deps.items()
+        if key.to_user_string() in EXPECTED_QUARANTINES
+    }
+
+    assert parents == {key: [valid] for key, valid in EXPECTED_QUARANTINES.items()}
 
 
 def test_the_defective_frame_breaks_the_rules_the_demo_advertises():

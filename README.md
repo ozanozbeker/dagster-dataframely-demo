@@ -54,7 +54,7 @@ Groups sort alphabetically, so they read in the order below.
 | | `orders_undescribed` | The same asset with no `description=`, so the catalog shows the schema's docstring instead of the function's. |
 | `b_quarantine` | `defective_raw_orders` | Twenty rows, eight of which break a rule. |
 | | `quarantined_orders` | The same rows with `quarantine=dg.AssetOut()`. Seven checks fail at `WARN` and the run stays green. |
-| | `quarantined_orders_quarantine` | The invalid rows, one `dy_*` outcome column per rule, plus the `cooccurrence` table. |
+| | `quarantined_orders_quarantine` | The invalid rows, one `dy_*` outcome column per rule, plus the `cooccurrence` table. Its only parent is `quarantined_orders`, not `defective_raw_orders`. |
 | `c_failures` | `strict_orders` | The same rows with no quarantine. `ValidationAbortError`, checks red at `ERROR`, nothing written. |
 | | `mistyped_orders` | `quantity` arrives `Int64`. The blocking `dy_schema__dtypes` check fails and no rule check reports at all. |
 | | `doomed_orders` | Every row rejected. `NothingSurvivedError`, quarantine written, valid table skipped rather than emptied. |
@@ -89,7 +89,7 @@ Shoot in this order: each one needs the run above it to have happened.
 | 5 | `orders_by_rule`, `orders_by_column`, `orders_by_schema` | Three crops of the check lists side by side: 24, 14, 2. |
 | 6 | `quarantined_orders` | One red check expanded, showing `dy_failed_sample` with the rows it rejected. |
 | 7 | `quarantined_orders` and `strict_orders` | The same rule red at `WARN` and at `ERROR`. The severity is the failure policy, visible. |
-| 8 | lineage | `quarantined_orders` beside its quarantine sibling, then `orders` where the sibling is absent. |
+| 8 | lineage | `defective_raw_orders` into `quarantined_orders` into its quarantine, one edge each rather than the quarantine hanging off the raw table too. Then `orders`, where the sibling is absent. |
 | 9 | `orders` | The materialization: `dagster/row_count`, `sample`, the four `stats/*` tables, and the manager's `path`, `bytes_written`, `dagster/storage_kind`. |
 | 10 | `quarantined_orders_quarantine` | The `cooccurrence` table, where `ORD-0015` reads as one row that tripped three rules. |
 | 11 | `daily_orders`, then `regional_orders` | The partition grid, one dimension and then two. |
