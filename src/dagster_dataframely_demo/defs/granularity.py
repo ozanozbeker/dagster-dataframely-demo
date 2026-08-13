@@ -13,28 +13,46 @@ from dagster_dataframely_demo.schema import Orders
 GROUP = "d_granularity"
 
 
-@dd.dataframely_asset(schema=Orders, group_name=GROUP)
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    description=(
+        "`check_granularity='rule'`, the default: one check per Dataframely rule, each with its "
+        "own timeline.\n\n"
+        "Twenty-four checks off thirteen columns, counting the shape check. Compare the length of "
+        "this list against the other two in this group."
+    ),
+)
 def orders_by_rule(raw_orders: pl.DataFrame) -> pl.DataFrame:
-    """`check_granularity="rule"`, the default: one check per dataframely rule, each with its own timeline.
-
-    Twenty-four checks off thirteen columns, counting the gate. Compare the length of this list against the other two in this group.
-    """
+    """One check per rule."""
     return raw_orders
 
 
-@dd.dataframely_asset(schema=Orders, group_name=GROUP, check_granularity="column")
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    check_granularity="column",
+    description=(
+        "`check_granularity='column'`: one `dy_col__<column>` check per rule-bearing column.\n\n"
+        "Twenty-four down to fourteen. This is what makes a forty-column schema's check list "
+        "readable. The rules no single column owns land in `dy_schema__rules`, which is what "
+        "`multi_column_rules` decides."
+    ),
+)
 def orders_by_column(raw_orders: pl.DataFrame) -> pl.DataFrame:
-    """`check_granularity="column"`: one `dy_col__<column>` check per rule-bearing column.
-
-    Twenty-four down to fourteen. This is what makes a forty-column schema's check list readable. The rules no single column owns land in `dy_schema__rules`, which is what `multi_column_rules` decides.
-    """
+    """One check per rule-bearing column."""
     return raw_orders
 
 
-@dd.dataframely_asset(schema=Orders, group_name=GROUP, check_granularity="schema")
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    check_granularity="schema",
+    description=(
+        "`check_granularity='schema'`: a single `dy_schema__rules` for every rule at once.\n\n"
+        "Two checks left, and one of them is the shape check. One timeline for the whole schema."
+    ),
+)
 def orders_by_schema(raw_orders: pl.DataFrame) -> pl.DataFrame:
-    """`check_granularity="schema"`: a single `dy_schema__rules` for every rule at once.
-
-    Two checks left, and one of them is the gate. One timeline for the whole schema.
-    """
+    """One check for every rule."""
     return raw_orders

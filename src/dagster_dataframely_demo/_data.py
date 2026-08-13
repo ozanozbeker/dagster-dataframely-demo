@@ -139,6 +139,22 @@ def mistyped_orders() -> pl.DataFrame:
 
 
 def orders_on(day: dt.date) -> pl.DataFrame:
-    """The clean lines restamped onto one day, for the partitioned asset."""
-    stamp = dt.datetime.combine(day, dt.time(9, 0))
-    return clean_orders().with_columns(pl.lit(stamp).alias("ordered_at"))
+    """The clean lines that were ordered on one day, for the partitioned asset.
+
+    A slice rather than a restamp, so the four partitions hold disjoint orders and a fan-in over all of them is still a valid table. Restamping every line onto each day would duplicate the primary key the moment anything concatenated two partitions.
+
+    Whole orders stay together, because `line_numbers_are_dense` looks across an order's lines: splitting `ORD-0001` across two days would reject both halves.
+    """
+    return clean_orders().filter(pl.col("ordered_at").dt.date() == day)
+
+
+def orders_for(day: dt.date, region: str) -> pl.DataFrame:
+    """One cell of the day-by-region grid.
+
+    The schema has no region column, so the split is by order number: `eu` takes the even ones and `us` the odd. Whole orders again, for the density rule, and every cell of the grid holds at least one line so no partition materializes empty.
+    """
+    wanted = 0 if region == "eu" else 1
+    numbered = orders_on(day).with_columns(
+        pl.col("order_id").str.slice(4).cast(pl.Int32).alias("_number")
+    )
+    return numbered.filter(pl.col("_number") % 2 == wanted).drop("_number")

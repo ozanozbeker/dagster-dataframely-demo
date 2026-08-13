@@ -1,7 +1,7 @@
 # dagster-dataframely demo
 
 A Dagster project that puts every UI surface [`dagster-dataframely`](https://github.com/ozanozbeker/dagster-dataframely) touches in front of you at once.
-One schema, fourteen definitions across sixteen asset keys, six groups.
+One schema, twenty-two definitions across twenty-seven asset keys, eight groups.
 
 Everything here derives from a single `dy.Schema` in `src/dagster_dataframely_demo/schema.py`.
 That is the claim the project exists to demonstrate.
@@ -23,11 +23,13 @@ A `dg launch` in another shell gets a throwaway instance of its own, and nothing
 
 Materialize before you look.
 Half these surfaces only exist once an asset has run.
-The asset graph's search bar takes the same selection syntax as `--assets`, so paste each of these in and hit **Materialize**:
+The asset graph's search bar takes the same selection syntax, so paste each of these in and hit **Materialize**:
 
-1. `* and not group:c_failures and not key:daily_orders` is everything that goes green, in one run.
-2. `daily_orders` is partitioned, so this one opens the backfill dialog; take all four days.
-3. `group:c_failures` is the three that fail on purpose, so this run ends red.
+1. `* and not group:c_failures and not group:f_partitions` is everything that goes green, in one run.
+2. `daily_orders` opens the backfill dialog: take all five days.
+3. `regional_orders or regional_orders_quarantine` opens it too: take all ten cells.
+4. `orders_rollup` fans in over the five days, so run it after step 2.
+5. `group:c_failures` is the four that fail on purpose, so this run ends red.
 
 Ctrl-C ends the session and the run history goes with it.
 Tables under `storage/` outlive it, so `rm -rf storage` to start those over too.
@@ -48,39 +50,74 @@ Groups sort alphabetically, so they read in the order below.
 | group | asset | what it shows |
 | --- | --- | --- |
 | `a_catalog` | `raw_orders` | A plain `@dg.asset` over the same rows. The Columns tab it does *not* have is the comparison. |
-| | **`orders`** | **Start here.** Columns tab filled in from the schema before the first run, 24 checks behind the blocking gate, four statistics tables and a row sample on the materialization. |
+| | **`orders`** | **Start here.** Columns tab filled in from the schema before the first run, 24 checks behind the blocking shape check, four statistics tables and a row sample on the materialization. |
+| | `orders_undescribed` | The same asset with no `description=`, so the catalog shows the schema's docstring instead of the function's. |
 | `b_quarantine` | `defective_raw_orders` | Twenty rows, eight of which break a rule. |
 | | `quarantined_orders` | The same rows with `quarantine=dg.AssetOut()`. Seven checks fail at `WARN` and the run stays green. |
-| | `quarantined_orders_quarantine` | The rejected rows, one `dy_*` outcome column per rule, plus the `cooccurrence` table. |
+| | `quarantined_orders_quarantine` | The invalid rows, one `dy_*` outcome column per rule, plus the `cooccurrence` table. |
 | `c_failures` | `strict_orders` | The same rows with no quarantine. `ValidationAbortError`, checks red at `ERROR`, nothing written. |
-| | `gated_orders` | `quantity` arrives `Int64`. The blocking `dy_schema__dtypes` check fails and no rule check reports at all. |
-| | `doomed_orders` | Every row rejected. `NothingSurvivedError`, quarantine written, good table skipped rather than emptied. |
+| | `mistyped_orders` | `quantity` arrives `Int64`. The blocking `dy_schema__dtypes` check fails and no rule check reports at all. |
+| | `doomed_orders` | Every row rejected. `NothingSurvivedError`, quarantine written, valid table skipped rather than emptied. |
 | `d_granularity` | `orders_by_rule` | `check_granularity="rule"`, the default: 24 checks. |
 | | `orders_by_column` | `"column"`: 14, one `dy_col__<column>` per rule-bearing column. |
-| | `orders_by_schema` | `"schema"`: 2, and one of those is the gate. |
+| | `orders_by_schema` | `"schema"`: 2, and one of those is the shape check. |
 | `e_storage` | `csv_orders` | `DataframelyCSVIOManager`. Watch the run log name the columns it encoded. |
-| | `csv_orders_readback` | The CSV read back. Its green gate check is the proof the codec is an inverse. |
-| | `daily_orders` | Four daily partitions, with checks reporting per partition. |
-| `f_kit` | `hand_wired_orders` | The same surfaces from `dd.schema_metadata`, `dd.check_specs` and `dd.process`, wired by hand. |
+| | `csv_orders_readback` | The CSV read back. Its green shape check is the proof the codec is an inverse. |
+| | `streamed_extract` | A plain `@dg.asset` returning a `pl.LazyFrame`, so the plan sinks straight to storage. |
+| | `validated_stream` | The same lazy return under a schema: staged, read back, validated. The computation streams either way. |
+| `f_partitions` | `daily_orders` | Five daily partitions, with checks reporting per partition. |
+| | `regional_orders` | Day crossed with region: ten cells, nested one directory per dimension on disk. |
+| | `orders_rollup` | The fan-in, `dict[str, pl.LazyFrame]` keyed by partition. |
+| `g_metadata` | `annotated_orders` | A returned `dg.MaterializeResult`: your metadata, tags and data version on the event. |
+| | `context_annotated_orders` | `context.add_asset_metadata` with `asset_key=`, and the collision it wins that a returned result loses. |
+| `h_wiring` | `hand_wired_orders` | The same surfaces from `dd.wiring`, assembled by hand, quarantine included. |
+| | `hand_wired_clean_orders` | The same again with one out, which is all a plain `@dg.asset` needs. |
 
-The five rows of the library's failure-policy table are five of these assets: `gated_orders`, `orders`, `strict_orders`, `quarantined_orders`, `doomed_orders`, in that order.
+The five rows of the library's failure-policy table are five of these assets: `mistyped_orders`, `orders`, `strict_orders`, `quarantined_orders`, `doomed_orders`, in that order.
 
-## The three red assets are the point
+## Screenshots
 
-`strict_orders`, `gated_orders` and `doomed_orders` fail every run, by design.
+The library's README has no images yet, and this project exists to supply them.
+Shoot in this order: each one needs the run above it to have happened.
+
+| # | asset | what to capture |
+| --- | --- | --- |
+| 1 | `quarantined_orders` | **Hero.** The asset page with the checks panel open, one check red at `WARN` while the run stayed green. |
+| 2 | `orders` | The Columns tab: dtypes, descriptions, `tracking_id` unique, the composite primary key at table level, the constraints beside each column, and `amount`'s column tags. |
+| 3 | `orders_undescribed` | The overview panel, showing the schema's docstring as the description. |
+| 4 | `orders` | The check list at `rule` granularity, with descriptions: `paid_orders_have_amount` from its docstring, `amount >= 0.00` rendered, `line_numbers_are_dense` falling back to its own name. |
+| 5 | `orders_by_rule`, `orders_by_column`, `orders_by_schema` | Three crops of the check lists side by side: 24, 14, 2. |
+| 6 | `quarantined_orders` | One red check expanded, showing `dy_failed_sample` with the rows it rejected. |
+| 7 | `quarantined_orders` and `strict_orders` | The same rule red at `WARN` and at `ERROR`. The severity is the failure policy, visible. |
+| 8 | lineage | `quarantined_orders` beside its quarantine sibling, then `orders` where the sibling is absent. |
+| 9 | `orders` | The materialization: `dagster/row_count`, `sample`, the four `stats/*` tables, and the manager's `path`, `bytes_written`, `dagster/storage_kind`. |
+| 10 | `quarantined_orders_quarantine` | The `cooccurrence` table, where `ORD-0015` reads as one row that tripped three rules. |
+| 11 | `daily_orders`, then `regional_orders` | The partition grid, one dimension and then two. |
+| 12 | `annotated_orders` | The materialization carrying `source`, `extract/*`, the user-provided data version tag, and `dagster/row_count` at 12 rather than the 999 the transform returned. |
+
+Two more worth having if the library's docs grow a hand-wiring page: `hand_wired_orders`' Columns tab beside `orders`' (identical, which is the point), and `context_annotated_orders` showing `dagster/row_count` at 999, which is the argument for preferring the returned result.
+
+Shoot light or dark consistently, crop tight, and note the Dagster version wherever the images land: they are assertions about someone else's UI.
+The rows in `sample` and `dy_failed_sample` are the fake ones from `_data.py`, which is the only reason they are safe to publish.
+
+## The four red assets are the point
+
+`strict_orders`, `mistyped_orders` and `doomed_orders` fail every run, by design, and `doomed_orders_quarantine` is written by the run that fails.
 Each raises a different error from the package, and the message is a surface worth reading.
 
 Keep them out of any bulk materialize, or the aborted run buries the assets you wanted populated.
-That is what `not group:c_failures` in the first selection above is for.
+That is what `not group:c_failures` in the first selection is for.
 
 ## Notes
 
-`daily_orders` is partitioned and cannot share a run with the unpartitioned assets, which is why it gets a step of its own.
+Partitioned assets cannot share a run with unpartitioned ones, which is why `f_partitions` gets steps of its own.
 
-Selecting an asset that declares a quarantine needs both of its keys, because the underlying `multi_asset` does not support subsetting: select `group:c_failures` rather than `doomed_orders` on its own.
+Selecting an asset that declares a quarantine needs both of its keys, because the underlying `multi_asset` does not support subsetting: select `group:c_failures` rather than `doomed_orders` on its own, and `regional_orders or regional_orders_quarantine` rather than either alone.
 
 Tables land in `storage/`, relative to wherever you started `dg dev`.
 `DEMO_STORAGE_DIR` overrides it, and the managers take a universal-pathlib path, so `DEMO_STORAGE_DIR=s3://my-bucket/demo` writes to S3 given `s3fs` installed alongside.
+
+The partitioned assets hold disjoint orders rather than the same rows restamped, so `orders_rollup` can concatenate all five days and still satisfy the primary key.
 
 ### Pointing the demo at a local checkout
 

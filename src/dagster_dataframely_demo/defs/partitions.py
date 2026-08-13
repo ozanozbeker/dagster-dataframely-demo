@@ -1,0 +1,82 @@
+"""Group `f_partitions`: one dimension, two dimensions, and a fan-in over all of them.
+
+`partitions_def` forwards to the underlying `multi_asset` verbatim, so partitioning needed no code in the package and has no setting of its own. Both outs carry it, which is what stops a quarantine escaping its asset's partitioning.
+
+Validation runs per partition on that partition's frame, so `dagster/row_count` is that partition's count and a partition whose frame drifts aborts without touching any other partition's file.
+"""
+
+import datetime as dt
+
+import dagster as dg
+import dagster_dataframely as dd
+import polars as pl
+
+from dagster_dataframely_demo import _data
+from dagster_dataframely_demo.schema import Orders
+
+GROUP = "f_partitions"
+
+#: Five days, fixed rather than rolling, so a backfill stays small and a screenshot keeps its keys.
+DAILY = dg.DailyPartitionsDefinition(start_date="2026-08-01", end_date="2026-08-06")
+
+#: The same five days crossed with two regions: ten cells, each its own file.
+GRID = dg.MultiPartitionsDefinition(
+    {"day": DAILY, "region": dg.StaticPartitionsDefinition(["eu", "us"])}
+)
+
+
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    partitions_def=DAILY,
+    description=(
+        "The orders placed on one day, a root asset that finds its own rows.\n\n"
+        "It declares a `context` to reach `partition_key`, which is what a partitioned "
+        "`@dg.asset` does too. Every check reports per partition, so the Checks tab carries a "
+        "status per key, and a red partition says which day rather than which asset."
+    ),
+)
+def daily_orders(context: dg.AssetExecutionContext) -> pl.DataFrame:
+    """One day's slice, found by the partition key."""
+    return _data.orders_on(dt.date.fromisoformat(context.partition_key))
+
+
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    partitions_def=GRID,
+    quarantine=dg.AssetOut(
+        description="The grid's invalid rows, partitioned cell for cell exactly as the valid table is."
+    ),
+    description=(
+        "The same days crossed with two regions, so ten cells rather than five.\n\n"
+        "`context.partition_key` is a `dg.MultiPartitionKey` here, a `str` subclass rendering as "
+        "`2026-08-01|eu`. Read a dimension off `keys_by_dimension` rather than splitting that "
+        "string: both the string and the paths on disk sort by dimension name, so renaming a "
+        "dimension reorders them.\n\n"
+        "Storage nests one directory per dimension, `regional_orders/2026-08-01/eu.parquet`, and "
+        "the quarantine mirrors it cell for cell."
+    ),
+)
+def regional_orders(context: dg.AssetExecutionContext) -> pl.DataFrame:
+    """One cell of the day-by-region grid."""
+    cell = context.partition_key.keys_by_dimension
+    return _data.orders_for(dt.date.fromisoformat(cell["day"]), cell["region"])
+
+
+@dd.dataframely_asset(
+    schema=Orders,
+    group_name=GROUP,
+    description=(
+        "Every partition of `daily_orders` at once, assembled by the IO manager.\n\n"
+        "An unpartitioned asset depending on the whole of a partitioned one gets a dict keyed by "
+        "partition key. `dict[str, pl.LazyFrame]` is the lazy spelling: every value is that "
+        "partition's scan rather than its rows, so the concat is one plan over every partition "
+        "and nothing is read until the sink runs.\n\n"
+        "Annotate the dict, not the frame. `pl.DataFrame` fails Dagster's type check after every "
+        "partition has already been read."
+    ),
+)
+def orders_rollup(daily_orders: dict[str, pl.LazyFrame]) -> pl.LazyFrame:
+    """The fan-in: five days of scans concatenated into one plan."""
+    return pl.concat(daily_orders.values())
