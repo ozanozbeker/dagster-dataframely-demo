@@ -1,4 +1,4 @@
-"""Group `g_metadata`: the two ways your own metadata reaches a materialization.
+"""Group `metadata`: the two ways your own metadata reaches a materialization.
 
 The context reads the run. The return writes the materialization.
 
@@ -11,7 +11,7 @@ import polars as pl
 
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "g_metadata"
+GROUP = "metadata"
 
 
 @dd.dataframely_asset(

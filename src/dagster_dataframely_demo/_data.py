@@ -1,6 +1,6 @@
 """Plumbing: the five frames this demo feeds its assets.
 
-Underscored because a reader is meant to skip it. It answers "where do the rows come from", which has nothing to do with this package. `assets.py` is where the library is.
+Underscored because a reader is meant to skip it. It answers "where do the rows come from", which has nothing to do with this package. `defs/` is where the library is.
 
 The rows are literal rather than generated. A demo you screenshot has to produce the same numbers every run, and someone chasing a red check has to be able to point at the row that caused it. Each frame's docstring says which rules it breaks and why that case is worth having.
 """
@@ -138,23 +138,25 @@ def mistyped_orders() -> pl.DataFrame:
     return clean_orders().with_columns(pl.col("quantity").cast(pl.Int64))
 
 
-def orders_on(day: dt.date) -> pl.DataFrame:
-    """The clean lines that were ordered on one day, for the partitioned asset.
+def orders_on(orders: pl.DataFrame, day: dt.date) -> pl.DataFrame:
+    """The lines of `orders` that were ordered on one day, for the partitioned asset.
 
-    A slice rather than a restamp, so the four partitions hold disjoint orders and a fan-in over all of them is still a valid table. Restamping every line onto each day would duplicate the primary key the moment anything concatenated two partitions.
+    Takes the table rather than building it, because the partitioned assets read the whole of `raw_orders` and take their own slice out of it. That is what a partition mapping does in a real project, and it is why those assets have a parent at all.
+
+    A slice rather than a restamp, so the five partitions hold disjoint orders and a fan-in over all of them is still a valid table. Restamping every line onto each day would duplicate the primary key the moment anything concatenated two partitions.
 
     Whole orders stay together, because `line_numbers_are_dense` looks across an order's lines: splitting `ORD-0001` across two days would reject both halves.
     """
-    return clean_orders().filter(pl.col("ordered_at").dt.date() == day)
+    return orders.filter(pl.col("ordered_at").dt.date() == day)
 
 
-def orders_for(day: dt.date, region: str) -> pl.DataFrame:
+def orders_for(orders: pl.DataFrame, day: dt.date, region: str) -> pl.DataFrame:
     """One cell of the day-by-region grid.
 
     The schema has no region column, so the split is by order number: `eu` takes the even ones and `us` the odd. Whole orders again, for the density rule, and every cell of the grid holds at least one line so no partition materializes empty.
     """
     wanted = 0 if region == "eu" else 1
-    numbered = orders_on(day).with_columns(
+    numbered = orders_on(orders, day).with_columns(
         pl.col("order_id").str.slice(4).cast(pl.Int32).alias("_number")
     )
     return numbered.filter(pl.col("_number") % 2 == wanted).drop("_number")

@@ -1,32 +1,16 @@
-"""Group `a_catalog`: what one decorator argument puts in the catalog.
+"""Group `catalog`: what one decorator argument puts in the catalog.
 
-**Start here.** Two assets over identical rows, one of which declares its schema and one of which does not. Everything else in this project is a variation on the difference.
+**Start here.** Two assets over `raw_orders`, which declares nothing about its own shape. Open either Columns tab beside the base table's and the difference is the whole of this project; everything after this group is a variation on it.
 
 The prose these assets show in the UI is passed as `description=` rather than left in a docstring. Unset, the decorator fills the description from the schema's own docstring, which is the right default for a real project and the wrong one here: every asset in this demo would then read "A customer order line", and the point of each would be invisible. `orders_undescribed` is the one asset that leaves it unset, so the fallback is visible once.
 """
 
-import dagster as dg
 import dagster_dataframely as dd
 import polars as pl
 
-from dagster_dataframely_demo import _data
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "a_catalog"
-
-
-@dg.asset(
-    group_name=GROUP,
-    description=(
-        "Twelve clean order lines, declaring nothing about their own shape. "
-        "A plain `@dg.asset`, so it is the control: open its Columns tab beside `orders` "
-        "to see what the schema is worth. This one is empty until the asset has run, and "
-        "then holds only what the IO manager could infer."
-    ),
-)
-def raw_orders() -> pl.DataFrame:
-    """The control: the same rows with no schema attached."""
-    return _data.clean_orders()
+GROUP = "catalog"
 
 
 @dd.dataframely_asset(

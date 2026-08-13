@@ -18,14 +18,18 @@ from dagster_dataframely_demo.defs.metadata import annotated_orders
 from dagster_dataframely_demo.schema import Orders
 
 EXPECTED_GROUPS = {
-    "a_catalog": 3,
-    "b_quarantine": 3,
-    "c_failures": 4,
-    "d_granularity": 3,
-    "e_storage": 4,
-    "f_partitions": 4,
-    "g_metadata": 3,
-    "h_wiring": 3,
+    "base": 4,
+    "catalog": 2,
+    "failure/no_quarantine": 1,
+    "failure/nothing_survives": 2,
+    "failure/quarantine": 2,
+    "failure/shape": 1,
+    "granularity": 3,
+    "metadata": 3,
+    "partitions": 4,
+    "storage/csv": 2,
+    "storage/lazy": 2,
+    "wiring": 3,
 }
 
 # What each `check_granularity` collapses the schema's rules down to, counting the
@@ -77,6 +81,20 @@ def _definitions(defs: dg.Definitions) -> list[dg.AssetsDefinition]:
     return [a for a in defs.assets or [] if isinstance(a, dg.AssetsDefinition)]
 
 
+def _parents(defs: dg.Definitions) -> dict[str, list[str]]:
+    """Every asset key in the location against the keys it depends on.
+
+    `AssetSpec.deps` is typed `Iterable`, so it is drained into a list here once rather than at each call site.
+    """
+    return {
+        spec.key.to_user_string(): sorted(
+            dep.asset_key.to_user_string() for dep in spec.deps
+        )
+        for asset in _definitions(defs)
+        for spec in asset.specs
+    }
+
+
 def _spec(defs: dg.Definitions, key: str) -> dg.AssetSpec:
     return next(
         spec
@@ -105,10 +123,32 @@ def test_check_granularity_collapses_the_rules_as_documented(defs: dg.Definition
     assert {key: counts[key] for key in EXPECTED_CHECKS} == EXPECTED_CHECKS
 
 
+def test_base_is_the_only_group_with_roots_in_it(defs: dg.Definitions):
+    """The graph is only readable while every group is a chain hanging off `base`.
+
+    A new asset that builds its own frame instead of taking one is the exact regression this catches, because it costs nothing to write and adds a root nobody notices until the lineage view is on a projector.
+    """
+    roots = {key for key, parents in _parents(defs).items() if not parents}
+
+    assert roots == {
+        "defective_raw_orders",
+        "hopeless_raw_orders",
+        "mistyped_raw_orders",
+        "raw_orders",
+    }
+
+
+def test_nothing_has_more_than_one_parent(defs: dg.Definitions):
+    """One edge in means the eye can follow a group without tracing which of three upstreams fed which asset. Nothing here needs a second input, so a second one is a mistake rather than a design."""
+    fanned_in = {key: p for key, p in _parents(defs).items() if len(p) > 1}
+
+    assert fanned_in == {}
+
+
 def test_every_quarantine_hangs_off_its_own_valid_asset(defs: dg.Definitions):
     """The lineage screenshot is one of the shots this project exists to supply, so the graph has to be the shape the library's README describes.
 
-    `h_wiring` is the reason this reads the whole location rather than one asset: there the map is written by hand, so it can drift from what the decorator does without anything else noticing.
+    `wiring` is the reason this reads the whole location rather than one asset: there the map is written by hand, so it can drift from what the decorator does without anything else noticing.
     """
     parents = {
         key.to_user_string(): sorted(dep.to_user_string() for dep in deps)
@@ -121,7 +161,7 @@ def test_every_quarantine_hangs_off_its_own_valid_asset(defs: dg.Definitions):
 
 
 def test_the_defective_frame_breaks_the_rules_the_demo_advertises():
-    """`b_quarantine` and `c_failures` are only worth looking at if the data still fails."""
+    """`failure/quarantine` and `failure/no_quarantine` are only worth looking at if the data still fails."""
     valid, failure = Orders.filter(_data.defective_orders(), cast=False)
     assert valid.height == 12
     assert len(failure) == 8
@@ -131,12 +171,12 @@ def test_the_defective_frame_breaks_the_rules_the_demo_advertises():
 
 
 def test_the_partitions_hold_disjoint_orders():
-    """The fan-in in `f_partitions` is only valid while no order is split across two days.
+    """The fan-in in `partitions` is only valid while no order is split across two days.
 
     Restamping every line onto every day would duplicate the primary key the moment `orders_rollup` concatenated two partitions, and split an order across days would take out `line_numbers_are_dense` for both halves.
     """
     days = [dt.date(2026, 8, day) for day in range(1, 6)]
-    combined = pl.concat(_data.orders_on(day) for day in days)
+    combined = pl.concat(_data.orders_on(_data.clean_orders(), day) for day in days)
 
     assert combined.height == _data.clean_orders().height
     _, failure = Orders.filter(combined, cast=False)
@@ -165,7 +205,7 @@ def test_the_described_assets_show_their_own_prose(defs: dg.Definitions):
 
 
 def test_a_returned_result_is_inspectable_by_calling_the_asset():
-    """Direct invocation, which is what `g_metadata` claims and what a user's own tests would do."""
+    """Direct invocation, which is what `metadata` claims and what a user's own tests would do."""
     events = list(annotated_orders(_data.clean_orders()))  # pyrefly: ignore[bad-argument-type]
     materialization = next(
         event for event in events if isinstance(event, dg.MaterializeResult)

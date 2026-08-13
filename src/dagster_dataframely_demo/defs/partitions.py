@@ -1,4 +1,4 @@
-"""Group `f_partitions`: one dimension, two dimensions, and a fan-in over all of them.
+"""Group `partitions`: one dimension, two dimensions, and a fan-in over all of them.
 
 `partitions_def` forwards to the underlying `multi_asset` verbatim, so partitioning needed no code in the package and has no setting of its own. Both outs carry it, which is what stops a quarantine escaping its asset's partitioning.
 
@@ -14,7 +14,7 @@ import polars as pl
 from dagster_dataframely_demo import _data
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "f_partitions"
+GROUP = "partitions"
 
 #: Five days, fixed rather than rolling, so a backfill stays small and a screenshot keeps its keys.
 DAILY = dg.DailyPartitionsDefinition(start_date="2026-08-01", end_date="2026-08-06")
@@ -30,15 +30,21 @@ GRID = dg.MultiPartitionsDefinition(
     group_name=GROUP,
     partitions_def=DAILY,
     description=(
-        "The orders placed on one day, a root asset that finds its own rows.\n\n"
+        "The orders placed on one day, sliced out of the whole of `raw_orders`.\n\n"
+        "An unpartitioned parent has no partitions to map, so every partition of this asset "
+        "loads the entire base table and takes its own day out of it. That is the mapping "
+        "Dagster applies by default, and it is why a partitioned asset can sit downstream of "
+        "an unpartitioned one at all.\n\n"
         "It declares a `context` to reach `partition_key`, which is what a partitioned "
         "`@dg.asset` does too. Every check reports per partition, so the Checks tab carries a "
         "status per key, and a red partition says which day rather than which asset."
     ),
 )
-def daily_orders(context: dg.AssetExecutionContext) -> pl.DataFrame:
-    """One day's slice, found by the partition key."""
-    return _data.orders_on(dt.date.fromisoformat(context.partition_key))
+def daily_orders(
+    context: dg.AssetExecutionContext, raw_orders: pl.DataFrame
+) -> pl.DataFrame:
+    """One day's slice, taken out of the whole table by the partition key."""
+    return _data.orders_on(raw_orders, dt.date.fromisoformat(context.partition_key))
 
 
 @dd.dataframely_asset(
@@ -58,10 +64,14 @@ def daily_orders(context: dg.AssetExecutionContext) -> pl.DataFrame:
         "the quarantine mirrors it cell for cell."
     ),
 )
-def regional_orders(context: dg.AssetExecutionContext) -> pl.DataFrame:
+def regional_orders(
+    context: dg.AssetExecutionContext, raw_orders: pl.DataFrame
+) -> pl.DataFrame:
     """One cell of the day-by-region grid."""
     cell = context.partition_key.keys_by_dimension
-    return _data.orders_for(dt.date.fromisoformat(cell["day"]), cell["region"])
+    return _data.orders_for(
+        raw_orders, dt.date.fromisoformat(cell["day"]), cell["region"]
+    )
 
 
 @dd.dataframely_asset(

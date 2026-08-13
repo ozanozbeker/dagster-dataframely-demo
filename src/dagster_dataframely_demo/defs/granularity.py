@@ -1,4 +1,4 @@
-"""Group `d_granularity`: the same rules collapsed three ways.
+"""Group `granularity`: the same rules collapsed three ways.
 
 Clean data throughout, so every check is green and the only thing that differs between the three is the shape of the check list itself. Open all three Checks tabs side by side.
 
@@ -10,7 +10,7 @@ import polars as pl
 
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "d_granularity"
+GROUP = "granularity"
 
 
 @dd.dataframely_asset(

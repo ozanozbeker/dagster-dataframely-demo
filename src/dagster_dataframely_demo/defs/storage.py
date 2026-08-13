@@ -1,23 +1,25 @@
-"""Group `e_storage`: what the IO managers record, and what a plan does on its way to disk.
+"""Groups `storage/*`: what the IO managers record, and what a plan does on its way to disk.
 
-`csv_orders` and `csv_orders_readback` are a pair. Together they prove the CSV codec is an inverse rather than a lossy convenience, which is the one thing a CSV round trip cannot be trusted on without evidence.
+Two pairs, one subgroup each, because they answer different questions.
 
-`streamed_extract` and `validated_stream` are the other pair. Both return a `pl.LazyFrame` and both run it on the streaming engine; where they differ is what happens to the file the sink wrote.
+`storage/csv` proves the CSV codec is an inverse rather than a lossy convenience, which is the one thing a CSV round trip cannot be trusted on without evidence.
+
+`storage/lazy` is the write path a `pl.LazyFrame` takes. Both assets return one and both run it on the streaming engine; where they differ is what happens to the file the sink wrote.
 """
 
 import dagster as dg
 import dagster_dataframely as dd
 import polars as pl
 
-from dagster_dataframely_demo import _data
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "e_storage"
+CSV = "storage/csv"
+LAZY = "storage/lazy"
 
 
 @dd.dataframely_asset(
     schema=Orders,
-    group_name=GROUP,
+    group_name=CSV,
     io_manager_key="csv_io_manager",
     description=(
         "The same clean rows written as CSV instead of parquet.\n\n"
@@ -34,7 +36,7 @@ def csv_orders(raw_orders: pl.DataFrame) -> pl.DataFrame:
 
 @dd.dataframely_asset(
     schema=Orders,
-    group_name=GROUP,
+    group_name=CSV,
     description=(
         "The CSV read back, and the proof that the codec is an inverse.\n\n"
         "Its green `dy_schema__dtypes` check is the whole point: `fulfilled_in` came back a "
@@ -49,7 +51,7 @@ def csv_orders_readback(csv_orders: pl.DataFrame) -> pl.DataFrame:
 
 
 @dg.asset(
-    group_name=GROUP,
+    group_name=LAZY,
     description=(
         "A plain `@dg.asset` returning a `pl.LazyFrame`, so the plan streams straight to "
         "storage.\n\n"
@@ -60,14 +62,14 @@ def csv_orders_readback(csv_orders: pl.DataFrame) -> pl.DataFrame:
         "No schema is attached here, so nothing is validated: this is the IO manager on its own."
     ),
 )
-def streamed_extract() -> pl.LazyFrame:
+def streamed_extract(raw_orders: pl.DataFrame) -> pl.LazyFrame:
     """The write path a `LazyFrame` takes with no schema in the way."""
-    return _data.clean_orders().lazy().filter(pl.col("amount") > 0)
+    return raw_orders.lazy().filter(pl.col("amount") > 0)
 
 
 @dd.dataframely_asset(
     schema=Orders,
-    group_name=GROUP,
+    group_name=LAZY,
     description=(
         "The same lazy return, this time validated.\n\n"
         "The plan runs on the same streaming engine, but the sink lands in a staging file that is "

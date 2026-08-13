@@ -1,6 +1,6 @@
 """The one dataframely declaration this demo runs on.
 
-Alone in a module because it is the only thing this package asks you to write. Every surface `assets.py` puts in the Dagster UI is derived from this class and from nothing else.
+Alone in a module because it is the only thing this package asks you to write. Every surface the assets in `defs/` put in the Dagster UI is derived from this class and from nothing else.
 
 Every column here earns a surface rather than realism. `amount` is the `Decimal` that fills the numeric statistics table, `ordered_at` and `fulfilled_in` fill the temporal one, `is_gift` fills the boolean one, and `fulfilled_in` and `tags` are the two dtypes a CSV cell cannot hold, so the CSV manager has something to encode.
 """

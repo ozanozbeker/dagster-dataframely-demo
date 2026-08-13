@@ -1,4 +1,4 @@
-"""Group `h_wiring`: the same surfaces, assembled by hand.
+"""Group `wiring`: the same surfaces, assembled by hand.
 
 The decorator is one arrangement of parts the package also exports under `dd.wiring`. Reach for them when the decorator's shape is not the shape you need: a schema attached to an asset you did not declare, or an out arrangement the decorator does not offer.
 
@@ -9,12 +9,13 @@ This is not a route to `dy.Collection` support. `process` is single-schema by si
 
 import dagster as dg
 import dagster_dataframely as dd
+import polars as pl
 
-from dagster_dataframely_demo import _data
 from dagster_dataframely_demo.schema import Orders
 
-GROUP = "h_wiring"
+GROUP = "wiring"
 
+SOURCE = "defective_raw_orders"
 VALID = "hand_wired_orders"
 QUARANTINE = "hand_wired_orders_quarantine"
 
@@ -50,18 +51,25 @@ QUARANTINE = "hand_wired_orders_quarantine"
     # What hangs the quarantine off the valid table instead of off this asset's own parents,
     # which is what a `multi_asset` gives every out by default. The whole map is required:
     # name only the quarantine and Dagster refuses it, because every input the valid out holds
-    # has to be accounted for. This asset builds its own frame and has none, hence the empty set.
-    internal_asset_deps={VALID: set(), QUARANTINE: {dg.AssetKey(VALID)}},
+    # has to be accounted for, which is what the first entry is doing.
+    internal_asset_deps={
+        VALID: {dg.AssetKey(SOURCE)},
+        QUARANTINE: {dg.AssetKey(VALID)},
+    },
     check_specs=dd.wiring.check_specs(Orders, asset=VALID),
 )
-def hand_wired_orders(context: dg.AssetExecutionContext) -> dd.wiring.AssetYield:
+def hand_wired_orders(
+    context: dg.AssetExecutionContext, defective_raw_orders: pl.DataFrame
+) -> dd.wiring.AssetYield:
     """Runs what `dataframely_asset` runs, on outs and check specs written by hand.
 
     Resolve both keys with `asset_key_for_output` rather than building them: an out that declares `key_prefix` has a key its output name does not spell, and a result yielded against a key no out owns fails the step on the first yield.
+
+    The one key that cannot be resolved that way is the one in `internal_asset_deps`, which Dagster reads while the definition is being built, before there is a context to ask.
     """
     yield from dd.wiring.process(
         Orders,
-        _data.defective_orders(),
+        defective_raw_orders,
         valid_key=context.asset_key_for_output(VALID),
         quarantine_key=context.asset_key_for_output(QUARANTINE),
     )
@@ -80,8 +88,8 @@ def hand_wired_orders(context: dg.AssetExecutionContext) -> dd.wiring.AssetYield
         "frame."
     ),
 )
-def hand_wired_clean_orders(context: dg.AssetExecutionContext) -> dd.wiring.AssetYield:
+def hand_wired_clean_orders(
+    context: dg.AssetExecutionContext, raw_orders: pl.DataFrame
+) -> dd.wiring.AssetYield:
     """The Columns tab, the checks and the row filter, on an asset you declared yourself."""
-    yield from dd.wiring.process(
-        Orders, _data.clean_orders(), valid_key=context.asset_key
-    )
+    yield from dd.wiring.process(Orders, raw_orders, valid_key=context.asset_key)
